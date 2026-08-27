@@ -7,12 +7,14 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+
 from corbel.core.doc_parser import parse_header_documentation
 from corbel.core.renderers import render_markdown, render_man_page
+from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation
 
 app = typer.Typer(
     name="corbel",
-    help="Generador liviano de documentación de APIs, TDAs y man pages (man 3) en C",
+    help="Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C",
     add_completion=True
 )
 console = Console()
@@ -22,9 +24,15 @@ console = Console()
 def doc(
     header_path: Path = typer.Argument(..., help="Archivo .h a documentar", exists=True),
     format_type: str = typer.Option("markdown", "--format", "-f", help="Formato de salida: markdown, man, json"),
-    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo de destino (por defecto imprime en consola o genera archivo según formato)")
+    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo de destino (por defecto imprime en consola o genera archivo según formato)"),
+    placeholders: bool = typer.Option(False, "--placeholders", "--scaffold", "-p", help="Inyectar placeholders Doxygen en el código fuente en lugar de exportar documentación"),
+    in_place: bool = typer.Option(False, "--in-place", "-i", help="Modificar el archivo .h directamente al usar --placeholders"),
 ):
-    """Genera documentación a partir de comentarios estructurados en cabeceras C."""
+    """Genera documentación a partir de comentarios estructurados o inyecta placeholders en cabeceras C."""
+    if placeholders:
+        scaffold(target=header_path, in_place=in_place, output_file=output_file, file_header=True)
+        return
+
     module_doc = parse_header_documentation(header_path)
 
     if format_type.lower() == "json":
@@ -63,6 +71,63 @@ def doc(
                 table.add_row(fn.name, fn.brief, params_str, fn.returns or "void")
 
             console.print(table)
+
+
+@app.command("scaffold")
+@app.command("stub")
+def scaffold(
+    target: Path = typer.Argument(..., help="Archivo .h o .c a documentar", exists=True),
+    in_place: bool = typer.Option(False, "--in-place", "-i", help="Modificar el archivo directamente in-place."),
+    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo de destino."),
+    file_header: bool = typer.Option(True, "--file-header/--no-file-header", help="Incluir encabezado general @file al inicio del archivo."),
+):
+    """
+    Agrega placeholders estructurados de documentación (@brief, @param, @return, @pre, @post)
+    a todas las funciones, estructuras, uniones, enumeraciones y tipos indocumentados.
+    """
+    source_code = target.read_text(encoding="utf-8", errors="replace")
+    updated_code = inject_placeholders(
+        source_code=source_code,
+        filename=target.name,
+        include_file_header=file_header
+    )
+
+    if in_place:
+        target.write_text(updated_code, encoding="utf-8")
+        console.print(f"[bold green]✓ Placeholders inyectados in-place en:[/bold green] {target}")
+    elif output_file:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(updated_code, encoding="utf-8")
+        console.print(f"[bold green]✓ Archivo con placeholders generado en:[/bold green] {output_file}")
+    else:
+        print(updated_code)
+
+
+@app.command("check")
+@app.command("lint")
+def check(
+    target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
+):
+    """Audita e informa todos los elementos C que carecen de comentarios Doxygen."""
+    source_code = target.read_text(encoding="utf-8", errors="replace")
+    missing = analyze_missing_documentation(source_code=source_code, filename=target.name)
+
+    if not missing:
+        console.print(f"[bold green]✓ 100% Documentado:[/bold green] Todos los elementos en '{target.name}' cuentan con bloques Doxygen.")
+        return
+
+    table = Table(title=f"Elementos sin Documentar en {target.name}", show_header=True, header_style="bold red")
+    table.add_column("Línea", justify="right", style="dim")
+    table.add_column("Tipo", style="yellow")
+    table.add_column("Nombre / Firma", style="cyan")
+
+    for item in missing:
+        table.add_row(str(item["line"]), item["type"], item["signature"])
+
+    console.print(table)
+    console.print(f"\n[bold yellow]Se encontraron {len(missing)} elemento(s) sin documentar.[/bold yellow] Podés generar los placeholders con:")
+    console.print(f"  [cyan]corbel scaffold {target} --in-place[/cyan]")
+    raise typer.Exit(code=1)
 
 
 @app.command()
