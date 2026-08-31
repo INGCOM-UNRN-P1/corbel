@@ -103,14 +103,40 @@ def scaffold(
         print(updated_code)
 
 
+def generar_seccion_markdown(target: Path, missing: list = None) -> str:
+    """Genera sección de auditoría de documentación de API para Dredd."""
+    lines = ["## Documentación de API y TDAs (Corbel)\n"]
+    lines.append(f"- **Archivo analizado:** `{target.name}`")
+    if missing is not None:
+        lines.append(f"- **Elementos sin documentar:** {len(missing)}")
+        if not missing:
+            lines.append("\n> [!TIP]\n> **Cobertura Completa:** Todas las funciones, estructuras y tipos cuentan con comentarios de documentación estructurados.\n")
+        else:
+            lines.append("\n> [!WARNING]\n> **Elementos Indocumentados:** Se detectaron funciones o estructuras sin docstrings Doxygen canónicos.\n")
+            lines.append("| Línea | Tipo | Nombre / Firma |")
+            lines.append("| :---: | :---: | :--- |")
+            for m in missing:
+                lines.append(f"| {m.get('line', '-')} | {m.get('type', '-')} | `{m.get('signature', '-')}` |")
+            lines.append("")
+    return "\n".join(lines)
+
+
 @app.command("check")
 @app.command("lint")
 def check(
     target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
+    output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
 ):
     """Audita e informa todos los elementos C que carecen de comentarios Doxygen."""
     source_code = target.read_text(encoding="utf-8", errors="replace")
     missing = analyze_missing_documentation(source_code=source_code, filename=target.name)
+
+    if output_md:
+        md_text = generar_seccion_markdown(target, missing=missing)
+        output_md.parent.mkdir(parents=True, exist_ok=True)
+        output_md.write_text(md_text, encoding="utf-8")
+        console.print(f"[bold green]✓ Sección Markdown generada en:[/bold green] {output_md}")
+        raise typer.Exit(code=0 if not missing else 1)
 
     if not missing:
         console.print(f"[bold green]✓ 100% Documentado:[/bold green] Todos los elementos en '{target.name}' cuentan con bloques Doxygen.")
@@ -128,6 +154,23 @@ def check(
     console.print(f"\n[bold yellow]Se encontraron {len(missing)} elemento(s) sin documentar.[/bold yellow] Podés generar los placeholders con:")
     console.print(f"  [cyan]corbel scaffold {target} --in-place[/cyan]")
     raise typer.Exit(code=1)
+
+
+@app.command("report")
+def report(
+    target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
+):
+    """Genera directamente la sección de reporte Markdown de CORBEL para Dredd."""
+    source_code = target.read_text(encoding="utf-8", errors="replace")
+    missing = analyze_missing_documentation(source_code=source_code, filename=target.name)
+    md_content = generar_seccion_markdown(target, missing=missing)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(md_content, encoding="utf-8")
+        console.print(f"[bold green]✓ Reporte Markdown generado en:[/bold green] {output}")
+    else:
+        print(md_content)
 
 
 @app.command()
