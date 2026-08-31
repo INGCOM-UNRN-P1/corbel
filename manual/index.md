@@ -177,3 +177,52 @@ check-corbel:
 ````
 
 Ejecutá `make check-corbel` antes de cada commit para asegurar que tu código conserve el estado de aprobación.
+
+---
+
+(manual-corbel-arquitectura)=
+## 7. Arquitectura Interna y Mecanismo Técnico
+
+La herramienta **`corbel`** implementa un motor de alta precisión basado en:
+
+- **Tecnología Núcleo:** `Tree-Sitter C / Doxygen Parser + GCC Test Runner + MyST Markdown Exporter`.
+- **Aislamiento y Determinismo:** Diseñada para operar sin efectos colaterales en entornos de integración continua (CI), terminales de estudiantes y servidores docentes headless.
+- **Manejo de Errores Pedagógico:** Todo fallo de sintaxis, memoria o lógica se traduce en una acción prescriptiva concreta con su respectiva justificación técnica.
+
+---
+
+(manual-corbel-ecosistema)=
+## 8. Integración y Conexión con el Ecosistema
+
+````{note}
+Ninguna herramienta opera de forma aislada. **`corbel`** forma parte del pipeline integral de evaluación, verificación y enseñanza de la cátedra.
+````
+
+### Diagrama de Flujo e Interoperabilidad
+
+````{mermaid}
+graph TD
+    HDR[Headers C: include/*.h] --> CRB[Corbel: Generador de Docs]
+    CRB -->|Extracción de Snippets| GCC[GCC: Compilación de Ejemplos]
+    CRB -->|Verificación de Opacidad| MOT[Motoko: Encapsulamiento TDA]
+    CRB -->|Documentación Markdown| MYST[Myst-Tools: Sitio Web y Apuntes]
+````
+
+### Matriz de Intercambio de Datos
+
+| Canal | Herramientas Conectadas | Tipo de Datos Transferidos |
+| :--- | :--- | :--- |
+| **Entradas (Inputs)** | - `Headers C (.h) con documentación de TDAs y APIs` | Código fuente, AST, binarios, testcases, contratos |
+| **Salidas (Outputs)** | - `myst-tools (sitios web y apuntes)`
+- `deckard (documentación de consignas)` | Informes Markdown, diagnósticos Rich, JSON, actas |
+| **Sincronización** | `motoko`, `parker`, `myst-tools` | Validación cruzada, flags compartidos y autofix |
+
+### Pipeline de Integración Recomendado
+
+Podés encadenar `corbel` con otras herramientas del ecosistema en una única línea de comando:
+
+````{code-block} bash
+# Pipeline de integración típico
+corbel build include/ -o docs/ && corbel test-snippets docs/ && myst-tools fmt docs/
+````
+
