@@ -4,6 +4,33 @@
 
 ---
 
+## 🎯 Alcance
+
+### Qué cubre
+- Extracción estática de contratos ACSL y comentarios de documentación estructurada (tipo Doxygen/Javadoc) en archivos de cabecera C (`.h`).
+- Generación de documentación técnica en Markdown, páginas web HTML y páginas de manual Unix (`man 3`).
+- Validación de completitud documental: advertencias sobre funciones públicas sin documentar o discrepancias con los prototipos.
+
+### Qué no cubre (Límites y Delegación)
+- Demostración matemática formal de los contratos (delegado a `callahan`).
+- Verificación de encapsulamiento y opacidad de TDAs (delegado a `motoko`).
+- Verificación de reglas de estilo de código (delegado a `gaff`).
+
+---
+
+## 📋 Requisitos
+
+### Requisitos de Sistema y Entorno
+- Multiplataforma. Python >= 3.10.
+
+### Dependencias Externas y Binarios
+- `groff` o `man` (opcional, para visualización de páginas `man 3`).
+
+### Integración en el Ecosistema
+- CLI `corbel`. Plugin registrado en `ripley.plugins` (`documentation`).
+
+---
+
 ## 🚀 Uso Rápido
 
 ```bash
