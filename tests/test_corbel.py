@@ -1,5 +1,6 @@
 """Tests unitarios y de integración para CORBEL con Tree-Sitter AST."""
 
+import json
 from pathlib import Path
 from typer.testing import CliRunner
 from corbel.cli import app
@@ -297,3 +298,15 @@ def test_ripley_plugin_scaffold_mode(tmp_path):
     assert res["passed"] is True
     assert len(res["scaffolded_files"]) == 1
     assert "@brief [Descripción breve de la función operacion]" in h.read_text(encoding="utf-8")
+
+
+def test_cli_doctor():
+    res = runner.invoke(app, ["doctor"])
+    assert res.exit_code == 0
+    assert "doctor" in res.output.lower()
+
+    res_json = runner.invoke(app, ["doctor", "--json"])
+    assert res_json.exit_code == 0
+    data = json.loads(res_json.output)
+    assert data["herramienta"] == "corbel"
+    assert data["ok"] is True
