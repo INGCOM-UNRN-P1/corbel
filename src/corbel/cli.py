@@ -105,7 +105,10 @@ def scaffold(
 
 def generar_seccion_markdown(target: Path, missing: list = None) -> str:
     """Genera sección de auditoría de documentación de API para Dredd."""
-    lines = ["## Documentación de API y TDAs (Corbel)\n"]
+    lines = [
+        "<!-- dredd-section: corbel v1.0.0 -->\n",
+        "## Documentación de API y TDAs (Corbel)\n",
+    ]
     lines.append(f"- **Archivo analizado:** `{target.name}`")
     if missing is not None:
         lines.append(f"- **Elementos sin documentar:** {len(missing)}")
@@ -116,7 +119,8 @@ def generar_seccion_markdown(target: Path, missing: list = None) -> str:
             lines.append("| Línea | Tipo | Nombre / Firma |")
             lines.append("| :---: | :---: | :--- |")
             for m in missing:
-                lines.append(f"| {m.get('line', '-')} | {m.get('type', '-')} | `{m.get('signature', '-')}` |")
+                sig_limpio = str(m.get('signature', '-')).replace("|", "&#124;")
+                lines.append(f"| {m.get('line', '-')} | {m.get('type', '-')} | `{sig_limpio}` |")
             lines.append("")
     return "\n".join(lines)
 
@@ -125,6 +129,7 @@ def generar_seccion_markdown(target: Path, missing: list = None) -> str:
 @app.command("lint")
 def check(
     target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
+    json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
 ):
     """Audita e informa todos los elementos C que carecen de comentarios Doxygen."""
@@ -136,6 +141,18 @@ def check(
         output_md.parent.mkdir(parents=True, exist_ok=True)
         output_md.write_text(md_text, encoding="utf-8")
         console.print(f"[bold green]✓ Sección Markdown generada en:[/bold green] {output_md}")
+        raise typer.Exit(code=0 if not missing else 1)
+
+    if json_output:
+        import json
+        payload = {
+            "schema_version": "1.0.0",
+            "target": str(target),
+            "total_missing": len(missing),
+            "missing": missing,
+            "passed": len(missing) == 0,
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
         raise typer.Exit(code=0 if not missing else 1)
 
     if not missing:
