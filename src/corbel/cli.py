@@ -131,10 +131,15 @@ def check(
     target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
     json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
+    completitud: bool = typer.Option(False, "--completitud", help="Auditar además los docblocks existentes e informar los tags que les faltan (@brief, @param, @return)."),
 ):
     """Audita e informa todos los elementos C que carecen de comentarios Doxygen."""
     source_code = target.read_text(encoding="utf-8", errors="replace")
-    missing = analyze_missing_documentation(source_code=source_code, filename=target.name)
+    missing = analyze_missing_documentation(
+        source_code=source_code,
+        filename=target.name,
+        verificar_completitud=completitud,
+    )
 
     if output_md:
         md_text = generar_seccion_markdown(target, missing=missing)
@@ -180,7 +185,11 @@ def report(
 ):
     """Genera directamente la sección de reporte Markdown de CORBEL para Dredd."""
     source_code = target.read_text(encoding="utf-8", errors="replace")
-    missing = analyze_missing_documentation(source_code=source_code, filename=target.name)
+    missing = analyze_missing_documentation(
+        source_code=source_code,
+        filename=target.name,
+        verificar_completitud=completitud,
+    )
     md_content = generar_seccion_markdown(target, missing=missing)
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)

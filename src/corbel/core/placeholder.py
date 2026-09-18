@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from corbel.core.doc_parser import parse_docblock
+
 import tree_sitter_c as tsc
 from tree_sitter import Language, Parser, Node, Tree
 
@@ -62,6 +64,78 @@ def _extract_param_name_from_node(param_node: Node, index: int = 1) -> Optional[
             return ident
 
     return f"param{index}"
+
+
+def _obtener_docblock_previo(source_bytes: bytes, start_byte: int) -> Optional[str]:
+    """Devuelve el docblock `/** ... */` inmediatamente anterior, si existe."""
+    preceding = source_bytes[:start_byte].decode("utf-8", errors="replace").rstrip()
+    if not preceding.endswith("*/"):
+        return None
+    comment_start = preceding.rfind("/*")
+    if comment_start == -1 or not preceding[comment_start:].startswith("/**"):
+        return None
+    docblock = preceding[comment_start:]
+    # Un docblock `@file` documenta el archivo, no la función que le sigue:
+    # atribuírselo la daría por documentada.
+    if "@file" in docblock:
+        return None
+    return docblock
+
+
+def _describir_funcion(node: Node, fn_decl: Node) -> Tuple[List[str], str]:
+    """Extrae los nombres de parámetros y el tipo de retorno de una función."""
+    nombres: List[str] = []
+    lista = fn_decl.child_by_field_name("parameters")
+    if lista is not None:
+        indice = 1
+        for hijo in lista.children:
+            if hijo.type != "parameter_declaration":
+                continue
+            nombre = _extract_param_name_from_node(hijo, indice)
+            if nombre and nombre != "...":
+                nombres.append(nombre)
+                indice += 1
+
+    tipo_node = node.child_by_field_name("type")
+    tipo_retorno = tipo_node.text.decode("utf-8", errors="replace").strip() if tipo_node else ""
+    # Un `void *` sí devuelve algo; solo `void` a secas no.
+    declarador = node.child_by_field_name("declarator")
+    if declarador is not None and declarador.text.decode("utf-8", errors="replace").strip().startswith("*"):
+        tipo_retorno += " *"
+    return nombres, tipo_retorno
+
+
+def analizar_docblock_incompleto(
+    docblock: str,
+    parametros: List[str],
+    tipo_retorno: str,
+    require_brief: bool = True,
+    require_params: bool = True,
+    require_return: bool = True,
+) -> List[str]:
+    """Lista los tags Doxygen que le faltan a un docblock existente.
+
+    Corbel detectaba únicamente la *ausencia* de documentación. La
+    completitud la auditaba en paralelo `ripley/core/doxygen.py`, duplicando
+    la responsabilidad R-A13; al traerla acá, corbel pasa a ser el propietario
+    real y ripley puede delegar sin perder el detalle por tag.
+    """
+    datos = parse_docblock(docblock)
+    faltantes: List[str] = []
+
+    if require_brief and not datos["brief"]:
+        faltantes.append("@brief (descripción de la función)")
+
+    if require_params:
+        documentados = {p.name for p in datos["params"]}
+        for nombre in parametros:
+            if nombre not in documentados:
+                faltantes.append(f"@param {nombre}")
+
+    if require_return and tipo_retorno.strip() not in ("void", "") and not datos["returns"]:
+        faltantes.append("@return")
+
+    return faltantes
 
 
 def is_already_documented(source_bytes: bytes, start_byte: int) -> bool:
@@ -139,7 +213,11 @@ def inject_placeholders(
 
     insertions: List[Tuple[int, str]] = []
 
-    # 1. Encabezado de archivo si corresponde
+    # 1. Encabezado de archivo si corresponde. No entra en `insertions`: si la
+    # primera declaración empieza en el byte 0, competiría por ese offset con
+    # el docblock de la función y terminaba insertándose DESPUÉS, dejando el
+    # comentario de la función huérfano arriba del encabezado.
+    file_doc = ""
     if include_file_header and filename:
         top_stripped = source_code.lstrip()
         if not top_stripped.startswith("/**"):
@@ -149,7 +227,6 @@ def inject_placeholders(
                 f" * @brief [Descripción general del módulo {filename}]\n"
                 " */\n\n"
             )
-            insertions.append((0, file_doc))
 
     def _get_line_indent(start_byte: int) -> str:
         line_start = source_bytes.rfind(b"\n", 0, start_byte)
@@ -249,11 +326,24 @@ def inject_placeholders(
         doc_bytes = doc_text.encode("utf-8")
         result_bytes[byte_offset:byte_offset] = doc_bytes
 
+    if file_doc:
+        result_bytes[0:0] = file_doc.encode("utf-8")
+
     return result_bytes.decode("utf-8", errors="replace")
 
 
-def analyze_missing_documentation(source_code: str, filename: str = "") -> List[Dict[str, Any]]:
-    """Analiza y reporta elementos indocumentados en C usando Tree-Sitter AST."""
+def analyze_missing_documentation(
+    source_code: str,
+    filename: str = "",
+    verificar_completitud: bool = False,
+) -> List[Dict[str, Any]]:
+    """Analiza y reporta elementos indocumentados en C usando Tree-Sitter AST.
+
+    Con `verificar_completitud` además audita los docblocks que sí existen y
+    reporta los tags que les faltan. Queda opt-in para no endurecer el criterio
+    de los consumidores actuales, que solo esperan detectar documentación
+    ausente; ripley lo activa al delegar (CORBEL-D0902).
+    """
     parser = get_c_parser()
     source_bytes = source_code.encode("utf-8")
     tree = parser.parse(source_bytes)
@@ -278,15 +368,36 @@ def analyze_missing_documentation(source_code: str, filename: str = "") -> List[
             if fn_decl:
                 fn_name = _find_identifier(fn_decl.child_by_field_name("declarator") or fn_decl)
                 if fn_name:
-                    if not is_already_documented(source_bytes, node.start_byte):
-                        line_no = node.start_point.row + 1
-                        sig = node.text.decode("utf-8", errors="replace").strip().split("{")[0].strip()
-                        missing.append({
+                    line_no = node.start_point.row + 1
+                    sig = node.text.decode("utf-8", errors="replace").strip().split("{")[0].strip()
+                    docblock = _obtener_docblock_previo(source_bytes, node.start_byte)
+                    if docblock is None:
+                        entrada = {
                             "type": "función",
                             "name": fn_name,
                             "line": line_no,
                             "signature": sig
-                        })
+                        }
+                        if verificar_completitud:
+                            # Una función sin docblock tiene TODOS los tags
+                            # faltantes: detallarlos le dice al estudiante qué
+                            # escribir, en vez de solo que falta documentar.
+                            parametros, tipo_retorno = _describir_funcion(node, fn_decl)
+                            entrada["missing_tags"] = analizar_docblock_incompleto(
+                                "", parametros, tipo_retorno
+                            )
+                        missing.append(entrada)
+                    elif verificar_completitud:
+                        parametros, tipo_retorno = _describir_funcion(node, fn_decl)
+                        faltantes = analizar_docblock_incompleto(docblock, parametros, tipo_retorno)
+                        if faltantes:
+                            missing.append({
+                                "type": "documentación incompleta",
+                                "name": fn_name,
+                                "line": line_no,
+                                "signature": sig,
+                                "missing_tags": faltantes,
+                            })
                 return
 
         if node.type == "type_definition":
