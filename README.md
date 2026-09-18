@@ -7,8 +7,8 @@
 ## 🎯 Alcance
 
 ### Qué cubre
-- Extracción estática de contratos ACSL y comentarios de documentación estructurada (tipo Doxygen/Javadoc) en archivos de cabecera C (`.h`).
-- Generación de documentación técnica en Markdown, páginas web HTML y páginas de manual Unix (`man 3`).
+- Extracción estática de comentarios de documentación estructurada (tipo Doxygen/Javadoc, incluidos los tags `@pre`/`@post`) en archivos de cabecera C (`.h`). No interpreta anotaciones ACSL (`/*@ requires … */`): esas las verifica `callahan`.
+- Generación de documentación técnica en Markdown, JSON y páginas de manual Unix (`man 3`). No genera HTML.
 - Validación de completitud documental: advertencias sobre funciones públicas sin documentar o discrepancias con los prototipos.
 
 ### Qué no cubre (Límites y Delegación)

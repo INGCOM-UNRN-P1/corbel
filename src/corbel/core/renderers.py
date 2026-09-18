@@ -1,4 +1,4 @@
-"""Renderizadores de documentación en Markdown, HTML y man pages (roff)."""
+"""Renderizadores de documentación en Markdown y man pages (roff)."""
 
 import html
 from corbel.core.models import ModuleDoc

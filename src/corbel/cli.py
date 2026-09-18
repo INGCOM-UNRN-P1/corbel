@@ -203,7 +203,7 @@ def report(
 def doctor_cmd(
     json_output: bool = typer.Option(False, "--json", help="Emitir diagnóstico en formato JSON estructurado."),
 ) -> None:
-    """Verifica el estado del entorno de documentación CORBEL (Python, Doxygen)."""
+    """Verifica el estado del entorno de documentación CORBEL (Python, man)."""
     import shutil
     import sys
     diagnostico = []
@@ -216,12 +216,12 @@ def doctor_cmd(
         "detalle": f"Python {sys.version.split()[0]}",
     })
 
-    dox_path = shutil.which("doxygen")
+    man_path = shutil.which("man")
     diagnostico.append({
-        "componente": "Herramienta Doxygen",
-        "estado": "OK" if dox_path else "ADVERTENCIA",
+        "componente": "Visor man",
+        "estado": "OK" if man_path else "ADVERTENCIA",
         "requerido": False,
-        "detalle": dox_path or "No encontrado (opcional para generación de sitios HTML/XML)",
+        "detalle": man_path or "No encontrado (opcional: solo para leer las páginas `man 3` exportadas)",
     })
 
     todo_ok = py_ok
