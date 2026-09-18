@@ -67,19 +67,31 @@ def _extract_param_name_from_node(param_node: Node, index: int = 1) -> Optional[
 
 
 def _obtener_docblock_previo(source_bytes: bytes, start_byte: int) -> Optional[str]:
-    """Devuelve el docblock `/** ... */` inmediatamente anterior, si existe."""
+    """Devuelve el docblock `/** ... */` que precede a la función, si existe.
+
+    Los comentarios comunes intercalados (`/* nota */`, `// nota`) no son
+    documentación ni la interrumpen (Doxygen los ignora): se saltean para llegar
+    al docblock. Antes, uno solo de ellos ocultaba el docblock y se inyectaba un
+    segundo encima.
+    """
     preceding = source_bytes[:start_byte].decode("utf-8", errors="replace").rstrip()
-    if not preceding.endswith("*/"):
+    while True:
+        if preceding.endswith("*/"):
+            comment_start = preceding.rfind("/*")
+            if comment_start == -1:
+                return None
+            if preceding[comment_start:].startswith("/**"):
+                docblock = preceding[comment_start:]
+                # Un docblock `@file` documenta el archivo, no la función que le
+                # sigue: atribuírselo la daría por documentada.
+                return None if "@file" in docblock else docblock
+            preceding = preceding[:comment_start].rstrip()
+            continue
+        ultima_linea = preceding.rsplit("\n", 1)[-1].strip()
+        if ultima_linea.startswith("//") and not ultima_linea.startswith(("///", "//!")):
+            preceding = preceding[:len(preceding) - len(preceding.rsplit("\n", 1)[-1])].rstrip()
+            continue
         return None
-    comment_start = preceding.rfind("/*")
-    if comment_start == -1 or not preceding[comment_start:].startswith("/**"):
-        return None
-    docblock = preceding[comment_start:]
-    # Un docblock `@file` documenta el archivo, no la función que le sigue:
-    # atribuírselo la daría por documentada.
-    if "@file" in docblock:
-        return None
-    return docblock
 
 
 def _describir_funcion(node: Node, fn_decl: Node) -> Tuple[List[str], str]:
@@ -139,13 +151,8 @@ def analizar_docblock_incompleto(
 
 
 def is_already_documented(source_bytes: bytes, start_byte: int) -> bool:
-    """Verifica si antes de start_byte existe un comentario docblock /** ... */."""
-    preceding = source_bytes[:start_byte].decode("utf-8", errors="replace").rstrip()
-    if preceding.endswith("*/"):
-        comment_start = preceding.rfind("/*")
-        if comment_start != -1 and preceding[comment_start:].startswith("/**"):
-            return True
-    return False
+    """Verifica si la declaración en start_byte tiene un docblock /** ... */ que la documente."""
+    return _obtener_docblock_previo(source_bytes, start_byte) is not None
 
 
 def generate_function_docblock(
