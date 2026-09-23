@@ -105,8 +105,9 @@ def scaffold(
 
 def generar_seccion_markdown(target: Path, missing: list = None) -> str:
     """Genera sección de auditoría de documentación de API para Dredd."""
+    status = "fail" if missing else "ok"
     lines = [
-        "<!-- dredd-section: corbel v1.0.0 -->\n",
+        f"<!-- dredd-section: corbel, tool=corbel, version=1.0.0, status={status} -->\n",
         "## Documentación de API y TDAs (Corbel)\n",
     ]
     lines.append(f"- **Archivo analizado:** `{target.name}`")
