@@ -13,11 +13,34 @@ from corbel.core.renderers import render_markdown, render_man_page
 from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation
 
 app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
     name="corbel",
     help="Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C",
     add_completion=True
 )
 console = Console()
+
+
+def _mostrar_version(valor: bool) -> None:
+    if valor:
+        from corbel import __version__
+
+        console.print(f"corbel {__version__}")
+        raise typer.Exit(code=0)
+
+
+@app.callback()
+def _principal(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        help="Muestra la versión de corbel y termina.",
+        callback=_mostrar_version,
+        is_eager=True,
+    ),
+) -> None:
+    """Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C"""
 
 
 @app.command()
