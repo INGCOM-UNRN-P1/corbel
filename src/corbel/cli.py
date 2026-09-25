@@ -183,6 +183,7 @@ def check(
 def report(
     target: Path = typer.Argument(..., help="Archivo .h o .c a auditar", exists=True),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
+    completitud: bool = typer.Option(False, "--completitud", help="Auditar además los docblocks existentes e informar los tags que les faltan (@brief, @param, @return)."),
 ):
     """Genera directamente la sección de reporte Markdown de CORBEL para Dredd."""
     source_code = target.read_text(encoding="utf-8", errors="replace")
