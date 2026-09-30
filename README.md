@@ -45,3 +45,26 @@ corbel doc tda_lista.h --format markdown -o LISTA_API.md
 # Generar página man 3 para UNIX
 corbel doc tda_lista.h --format man -o /usr/local/man/man3/tda_lista.3
 ```
+
+<!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
+
+## Referencia rápida
+
+### Requisitos
+
+- Python ≥ 3.11 y [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Comandos
+
+| Comando | Descripción |
+|:--|:--|
+| `corbel doc` | Genera documentación a partir de comentarios estructurados o inyecta placeholders en cabeceras C. |
+| `corbel stub`, `corbel scaffold` | Agrega placeholders estructurados de documentación (@brief, @param, @return, @pre, @post) a todas las funciones, estructuras, uniones, enumeraciones y tipos indocumentados. |
+| `corbel lint`, `corbel check` | Audita e informa todos los elementos C que carecen de comentarios Doxygen. |
+| `corbel report` | Genera directamente la sección de reporte Markdown de CORBEL para Dredd. |
+| `corbel doctor` | Verifica el estado del entorno de documentación CORBEL (Python, man). |
+| `corbel version` | Muestra la versión de CORBEL. |
+
+Ayuda de cada comando: `corbel <comando> -h`.
+
+<!-- p1:referencia:fin -->
