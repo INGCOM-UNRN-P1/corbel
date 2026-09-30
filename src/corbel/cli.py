@@ -4,43 +4,26 @@ import json
 from pathlib import Path
 from typing import Optional
 import typer
+from yutani.cli import crear_app
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
+from corbel import __version__
 from corbel.core.doc_parser import parse_header_documentation
 from corbel.core.renderers import render_markdown, render_man_page
 from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation
 
-app = typer.Typer(
-    context_settings={"help_option_names": ["-h", "--help"]},
-    name="corbel",
-    help="Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C",
-    add_completion=True
+# Contrato de línea de comandos del ecosistema (-h/--help, --version/-v, errores de datos como
+# mensajes) y textos de Typer en español, desde yutani (N-ECO-14).
+app = crear_app(
+    "corbel",
+    __version__,
+    "Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C",
+    add_completion=True,
+    no_args_is_help=False,
 )
 console = Console()
-
-
-def _mostrar_version(valor: bool) -> None:
-    if valor:
-        from corbel import __version__
-
-        console.print(f"corbel {__version__}")
-        raise typer.Exit(code=0)
-
-
-@app.callback()
-def _principal(
-    version: bool = typer.Option(
-        False,
-        "--version",
-        "-v",
-        help="Muestra la versión de corbel y termina.",
-        callback=_mostrar_version,
-        is_eager=True,
-    ),
-) -> None:
-    """Generador liviano de documentación de APIs, TDAs, man pages (man 3) y scaffolding de comentarios en C"""
 
 
 @app.command()
