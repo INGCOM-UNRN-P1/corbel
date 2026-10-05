@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -143,11 +145,36 @@ def analizar_docblock_incompleto(
         for nombre in parametros:
             if nombre not in documentados:
                 faltantes.append(f"@param {nombre}")
+        # QoL #122/#123: docblock desactualizado, con parámetros que ya no están en la firma
+        # (se renombró o se sacó un parámetro y la documentación quedó vieja).
+        if docblock:
+            for p in datos["params"]:
+                if p.name not in parametros:
+                    faltantes.append(f"@param {p.name} (no está en la firma: ¿se renombró?)")
 
-    if require_return and tipo_retorno.strip() not in ("void", "") and not datos["returns"]:
+    es_void = tipo_retorno.strip() in ("void", "")
+    if require_return and not es_void and not datos["returns"]:
         faltantes.append("@return")
+    if docblock and tipo_retorno.strip() == "void" and datos["returns"]:
+        faltantes.append("@return sobra: la función es void")
 
     return faltantes
+
+
+# Marcas de los esqueletos de documentación que generan `corbel scaffold` y `gaff fix`: mientras
+# sigan en el docblock, la documentación no está escrita.
+_MARCA_PLACEHOLDER = re.compile(
+    r"\[(?:completar:|Descripci[oó]n (?:breve|del|de)|Precondiciones|Postcondiciones)[^\]]*\]", re.IGNORECASE)
+
+
+def tags_con_placeholder(docblock: str) -> List[str]:
+    """Las líneas del docblock que todavía tienen el texto de relleno del esqueleto."""
+    pendientes = []
+    for linea in docblock.splitlines():
+        if _MARCA_PLACEHOLDER.search(linea):
+            texto = linea.strip().lstrip("/*").strip()
+            pendientes.append(texto.split("[", 1)[0].strip() or texto)
+    return pendientes
 
 
 def is_already_documented(source_bytes: bytes, start_byte: int) -> bool:
@@ -394,6 +421,16 @@ def analyze_missing_documentation(
                                 "", parametros, tipo_retorno
                             )
                         missing.append(entrada)
+                    elif tags_con_placeholder(docblock):
+                        # Un esqueleto sin completar cuenta como documentación ausente (siempre:
+                        # el estudiante no escribió nada todavía).
+                        missing.append({
+                            "type": "placeholder sin completar",
+                            "name": fn_name,
+                            "line": line_no,
+                            "signature": sig,
+                            "missing_tags": tags_con_placeholder(docblock),
+                        })
                     elif verificar_completitud:
                         parametros, tipo_retorno = _describir_funcion(node, fn_decl)
                         faltantes = analizar_docblock_incompleto(docblock, parametros, tipo_retorno)
@@ -463,3 +500,26 @@ def analyze_missing_documentation(
 
     _traverse(tree.root_node)
     return missing
+
+
+def contar_elementos(source_code: str) -> int:
+    """Cuántos elementos documentables tiene el archivo (funciones, typedefs, structs, enums)."""
+    # Un archivo vacío de documentación informa cada elemento como ausente: es el total.
+    sin_docs = re.sub(r"/\*\*.*?\*/", "", source_code, flags=re.DOTALL)
+    return sum(1 for m in analyze_missing_documentation(sin_docs) if m["type"] != "file_header")
+
+
+def cobertura(source_code: str, filename: str = "") -> Dict[str, Any]:
+    """Porcentaje de la API documentada por completo (QoL #124): con docblock, sin texto de relleno
+    y con todos sus tags. El encabezado `@file` no cuenta."""
+    total = contar_elementos(source_code)
+    pendientes = [m for m in analyze_missing_documentation(source_code, filename, verificar_completitud=True)
+                  if m["type"] != "file_header"]
+    documentados = max(0, total - len(pendientes))
+    return {
+        "archivo": filename,
+        "total": total,
+        "documentados": documentados,
+        "porcentaje": round(100.0 * documentados / total, 1) if total else 100.0,
+        "pendientes": pendientes,
+    }

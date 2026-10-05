@@ -46,6 +46,19 @@ corbel doc tda_lista.h --format markdown -o LISTA_API.md
 corbel doc tda_lista.h --format man -o /usr/local/man/man3/tda_lista.3
 ```
 
+```bash
+# Qué falta documentar (y, con --completitud, qué tags le faltan a cada docblock)
+corbel check tda_lista.h --completitud
+
+# Porcentaje de la API documentada; con --min sale 1 por debajo (para el CI de la plantilla)
+corbel coverage include/ --min 80
+```
+
+Un docblock que todavía tiene el texto de relleno de `corbel scaffold` o de `gaff fix`
+(`[Descripción breve…]`, `[completar: …]`) cuenta como **documentación ausente**: el esqueleto
+no es documentación. Con `--completitud` también se marcan los docblocks desactualizados: un
+`@param` que ya no está en la firma (se renombró o se sacó) o un `@return` en una función `void`.
+
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 
 ## Referencia rápida
@@ -61,6 +74,7 @@ corbel doc tda_lista.h --format man -o /usr/local/man/man3/tda_lista.3
 | `corbel doc` | Genera documentación a partir de comentarios estructurados o inyecta placeholders en cabeceras C. |
 | `corbel stub`, `corbel scaffold` | Agrega placeholders estructurados de documentación (@brief, @param, @return, @pre, @post) a todas las funciones, estructuras, uniones, enumeraciones y tipos indocumentados. |
 | `corbel lint`, `corbel check` | Audita e informa todos los elementos C que carecen de comentarios Doxygen. |
+| `corbel coverage` | Porcentaje de la API pública documentada por completo (docblock, sin relleno y con todos sus tags). |
 | `corbel report` | Genera directamente la sección de reporte Markdown de CORBEL para Dredd. |
 | `corbel doctor` | Verifica el estado del entorno de documentación CORBEL (Python, man). |
 | `corbel version` | Muestra la versión de CORBEL. |
@@ -69,7 +83,7 @@ Ayuda de cada comando: `corbel <comando> -h`.
 
 ### Salida JSON
 
-Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `corbel lint`, `corbel check`, `corbel doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
+Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `corbel lint`, `corbel check`, `corbel coverage`, `corbel doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
 
 ### Códigos de salida
 

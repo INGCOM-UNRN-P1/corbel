@@ -282,11 +282,16 @@ def test_cli_check_command(tmp_path):
     assert res.exit_code == 1
     assert "sin_doc.h" in res.stdout
 
-    # Inyectar placeholders
+    # Los placeholders inyectados no son documentación: siguen pendientes hasta completarlos.
     runner.invoke(app, ["scaffold", str(h_sin_doc), "-i"])
     res2 = runner.invoke(app, ["check", str(h_sin_doc)])
-    assert res2.exit_code == 0
-    assert "100% Documentado" in res2.stdout
+    assert res2.exit_code == 1
+    assert "placeholder sin completar" in res2.stdout
+
+    h_sin_doc.write_text("/** @file sin_doc.h */\n/**\n * @brief Hace f.\n * @param x el valor\n */\nvoid f(int x);\n")
+    res3 = runner.invoke(app, ["check", str(h_sin_doc)])
+    assert res3.exit_code == 0
+    assert "100% Documentado" in res3.stdout
 
 
 def test_ripley_plugin_scaffold_mode(tmp_path):

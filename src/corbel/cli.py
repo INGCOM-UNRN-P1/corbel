@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 import typer
 from yutani.cli import crear_app
 from rich.console import Console
@@ -12,7 +12,7 @@ from rich.panel import Panel
 from corbel import __version__
 from corbel.core.doc_parser import parse_header_documentation
 from corbel.core.renderers import render_markdown, render_man_page
-from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation
+from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation, cobertura
 
 # Contrato de línea de comandos del ecosistema (-h/--help, --version/-v, errores de datos como
 # mensajes) y textos de Typer en español, desde yutani (N-ECO-14).
@@ -183,6 +183,43 @@ def check(
     console.print(f"\n[bold yellow]Se encontraron {len(missing)} elemento(s) sin documentar.[/bold yellow] Podés generar los placeholders con:")
     console.print(f"  [cyan]corbel scaffold {target} --in-place[/cyan]")
     raise typer.Exit(code=1)
+
+
+@app.command("coverage")
+def coverage_cmd(
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Cabeceras .h (o directorios) de la API a medir."),
+    minimo: Optional[float] = typer.Option(None, "--min", help="Porcentaje mínimo: por debajo sale con código 1 (para el CI de la plantilla)."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
+):
+    """Porcentaje de la API pública documentada por completo (docblock, sin relleno y con todos sus tags)."""
+    archivos: List[Path] = []
+    for r in rutas:
+        archivos.extend(sorted(r.rglob("*.h")) if r.is_dir() else [r])
+    filas = [cobertura(a.read_text(encoding="utf-8", errors="replace"), a.name) for a in archivos]
+    total = sum(f["total"] for f in filas)
+    documentados = sum(f["documentados"] for f in filas)
+    porcentaje = round(100.0 * documentados / total, 1) if total else 100.0
+    aprobado = minimo is None or porcentaje >= minimo
+
+    if json_output:
+        print(json.dumps({"schema_version": "1.0.0", "total": total, "documentados": documentados,
+                          "porcentaje": porcentaje, "minimo": minimo, "passed": aprobado, "archivos": filas},
+                         indent=2, ensure_ascii=False))
+        raise typer.Exit(code=0 if aprobado else 1)
+
+    tabla = Table(title="Cobertura de documentación de la API", show_header=True, header_style="bold cyan")
+    tabla.add_column("Archivo", style="cyan")
+    tabla.add_column("Documentados", justify="right")
+    tabla.add_column("%", justify="right")
+    for f in filas:
+        tabla.add_row(f["archivo"], f"{f['documentados']}/{f['total']}", f"{f['porcentaje']:.1f}")
+    console.print(tabla)
+    color = "green" if aprobado else "red"
+    console.print(f"[bold {color}]Total: {documentados}/{total} ({porcentaje:.1f} %)[/bold {color}]"
+                  + (f" — mínimo {minimo:.1f} %" if minimo is not None else ""))
+    if any(f["pendientes"] for f in filas):
+        console.print("[dim]`corbel check <archivo> --completitud` detalla qué le falta a cada elemento.[/dim]")
+    raise typer.Exit(code=0 if aprobado else 1)
 
 
 @app.command("report")
