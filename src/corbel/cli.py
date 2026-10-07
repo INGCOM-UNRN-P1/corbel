@@ -109,7 +109,7 @@ def scaffold(
         print(updated_code)
 
 
-def generar_seccion_markdown(target: Path, missing: list = None) -> str:
+def generar_seccion_markdown(target: Path, missing: Optional[list] = None) -> str:
     """Genera sección de auditoría de documentación de API para Dredd."""
     status = "fail" if missing else "ok"
     lines = [
@@ -290,7 +290,7 @@ def doctor_cmd(
     for c in diagnostico:
         color = "bold green" if c["estado"] == "OK" else ("bold yellow" if c["estado"] == "ADVERTENCIA" else "bold red")
         simbolo = "✓" if c["estado"] == "OK" else ("⚠️" if c["estado"] == "ADVERTENCIA" else "✗")
-        tabla.add_row(c["componente"], f"[{color}]{simbolo} {c['estado']}[/{color}]", c["detalle"])
+        tabla.add_row(str(c["componente"]), f"[{color}]{simbolo} {c['estado']}[/{color}]", str(c["detalle"]))
 
     console.print(tabla)
     if not todo_ok:

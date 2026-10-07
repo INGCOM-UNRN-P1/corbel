@@ -79,10 +79,10 @@ def _find_function_declarator(node: Node) -> Optional[Node]:
 def _find_identifier(node: Node) -> Optional[str]:
     """Encuentra el identificador principal dentro de un declarador AST."""
     if node.type in ("identifier", "type_identifier", "field_identifier"):
-        return node.text.decode("utf-8", errors="replace")
+        return (node.text or b"").decode("utf-8", errors="replace")
     for child in node.children:
         if child.type in ("identifier", "type_identifier", "field_identifier"):
-            return child.text.decode("utf-8", errors="replace")
+            return (child.text or b"").decode("utf-8", errors="replace")
         elif child.type in ("pointer_declarator", "function_declarator", "array_declarator", "parenthesized_declarator"):
             res = _find_identifier(child)
             if res:
@@ -121,8 +121,8 @@ def parse_header_documentation(header_path: Path) -> ModuleDoc:
                     doc_raw = _get_preceding_docblock(source_bytes, node.start_byte)
                     if doc_raw is not None:
                         type_node = node.child_by_field_name("type")
-                        ret_type = type_node.text.decode("utf-8", errors="replace") if type_node else "void"
-                        sig = node.text.decode("utf-8", errors="replace").strip().rstrip(";").strip() + ";"
+                        ret_type = (type_node.text or b"").decode("utf-8", errors="replace") if type_node else "void"
+                        sig = (node.text or b"").decode("utf-8", errors="replace").strip().rstrip(";").strip() + ";"
                         doc_data = parse_docblock(doc_raw)
 
                         functions.append(DocumentedFunction(

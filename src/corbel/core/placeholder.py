@@ -40,10 +40,10 @@ def _find_function_declarator(node: Node) -> Optional[Node]:
 def _find_identifier(node: Node) -> Optional[str]:
     """Encuentra el identificador principal dentro de un declarador AST."""
     if node.type in ("identifier", "type_identifier", "field_identifier"):
-        return node.text.decode("utf-8", errors="replace")
+        return (node.text or b"").decode("utf-8", errors="replace")
     for child in node.children:
         if child.type in ("identifier", "type_identifier", "field_identifier"):
-            return child.text.decode("utf-8", errors="replace")
+            return (child.text or b"").decode("utf-8", errors="replace")
         elif child.type in ("pointer_declarator", "function_declarator", "array_declarator", "parenthesized_declarator"):
             res = _find_identifier(child)
             if res:
@@ -53,7 +53,7 @@ def _find_identifier(node: Node) -> Optional[str]:
 
 def _extract_param_name_from_node(param_node: Node, index: int = 1) -> Optional[str]:
     """Extrae el nombre del parámetro a partir del nodo AST parameter_declaration."""
-    raw_text = param_node.text.decode("utf-8", errors="replace").strip()
+    raw_text = (param_node.text or b"").decode("utf-8", errors="replace").strip()
     if not raw_text or raw_text == "void":
         return None
     if raw_text == "...":
@@ -111,10 +111,10 @@ def _describir_funcion(node: Node, fn_decl: Node) -> Tuple[List[str], str]:
                 indice += 1
 
     tipo_node = node.child_by_field_name("type")
-    tipo_retorno = tipo_node.text.decode("utf-8", errors="replace").strip() if tipo_node else ""
+    tipo_retorno = (tipo_node.text or b"").decode("utf-8", errors="replace").strip() if tipo_node else ""
     # Un `void *` sí devuelve algo; solo `void` a secas no.
     declarador = node.child_by_field_name("declarator")
-    if declarador is not None and declarador.text.decode("utf-8", errors="replace").strip().startswith("*"):
+    if declarador is not None and (declarador.text or b"").decode("utf-8", errors="replace").strip().startswith("*"):
         tipo_retorno += " *"
     return nombres, tipo_retorno
 
@@ -287,7 +287,7 @@ def inject_placeholders(
                 fn_name = _find_identifier(fn_decl.child_by_field_name("declarator") or fn_decl)
                 if fn_name:
                     type_node = node.child_by_field_name("type")
-                    ret_type = type_node.text.decode("utf-8", errors="replace") if type_node else "void"
+                    ret_type = (type_node.text or b"").decode("utf-8", errors="replace") if type_node else "void"
                     params_node = fn_decl.child_by_field_name("parameters")
                     param_names = []
                     if params_node:
@@ -330,7 +330,7 @@ def inject_placeholders(
             if node.parent and node.parent.type not in ("type_definition", "declaration", "field_declaration"):
                 kind_name = node.type.replace("_specifier", "")
                 name_node = node.child_by_field_name("name")
-                name = name_node.text.decode("utf-8", errors="replace") if name_node else ""
+                name = (name_node.text or b"").decode("utf-8", errors="replace") if name_node else ""
                 if not is_already_documented(source_bytes, node.start_byte):
                     indent = _get_line_indent(node.start_byte)
                     doc = generate_struct_docblock(kind_name, name, indent)
@@ -340,7 +340,7 @@ def inject_placeholders(
                 if not _find_function_declarator(node.parent):
                     kind_name = node.type.replace("_specifier", "")
                     name_node = node.child_by_field_name("name")
-                    name = name_node.text.decode("utf-8", errors="replace") if name_node else ""
+                    name = (name_node.text or b"").decode("utf-8", errors="replace") if name_node else ""
                     if not is_already_documented(source_bytes, node.parent.start_byte):
                         indent = _get_line_indent(node.parent.start_byte)
                         doc = generate_struct_docblock(kind_name, name, indent)
@@ -403,7 +403,7 @@ def analyze_missing_documentation(
                 fn_name = _find_identifier(fn_decl.child_by_field_name("declarator") or fn_decl)
                 if fn_name:
                     line_no = node.start_point.row + 1
-                    sig = node.text.decode("utf-8", errors="replace").strip().split("{")[0].strip()
+                    sig = (node.text or b"").decode("utf-8", errors="replace").strip().split("{")[0].strip()
                     docblock = _obtener_docblock_previo(source_bytes, node.start_byte)
                     if docblock is None:
                         entrada = {
@@ -470,7 +470,7 @@ def analyze_missing_documentation(
         if node.type in ("struct_specifier", "enum_specifier", "union_specifier"):
             if node.parent and node.parent.type not in ("type_definition", "declaration", "field_declaration"):
                 name_node = node.child_by_field_name("name")
-                name = name_node.text.decode("utf-8", errors="replace") if name_node else "anónimo"
+                name = (name_node.text or b"").decode("utf-8", errors="replace") if name_node else "anónimo"
                 if not is_already_documented(source_bytes, node.start_byte):
                     line_no = node.start_point.row + 1
                     kind_name = node.type.replace("_specifier", "")
@@ -483,7 +483,7 @@ def analyze_missing_documentation(
             elif node.parent and node.parent.type == "declaration" and node.parent.parent and node.parent.parent.type == "translation_unit":
                 if not _find_function_declarator(node.parent):
                     name_node = node.child_by_field_name("name")
-                    name = name_node.text.decode("utf-8", errors="replace") if name_node else "anónimo"
+                    name = (name_node.text or b"").decode("utf-8", errors="replace") if name_node else "anónimo"
                     if not is_already_documented(source_bytes, node.parent.start_byte):
                         line_no = node.parent.start_point.row + 1
                         kind_name = node.type.replace("_specifier", "")
