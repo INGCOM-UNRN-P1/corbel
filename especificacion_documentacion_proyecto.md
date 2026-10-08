@@ -22,9 +22,18 @@ Resultado esperado para el alumno:
 
 ```bash
 make doc          # en la raíz: doc/ con un índice y una página por biblioteca y ejercicio
-make doc-check    # ¿falta documentar algo? sale 1 si la cobertura está bajo el mínimo
 man -l doc/man/man3/lista_crear.3
 ```
+
+### 1.1. Decisiones tomadas
+
+1. **`doc/` no se versiona.** Las plantillas lo agregan a `.gitignore`; la documentación
+   es un derivado del código, como los objetos.
+2. **Se genera a demanda con el Makefile** (`make doc`), nunca sola.
+3. **El IDE (`jonesy`) la busca y avisa** cuando falta o quedó vieja respecto del código,
+   indicando que hay que correr `make doc` (§4, RF-9). No la regenera por su cuenta.
+4. **La cobertura no es fundamental**: medirla y exigir mínimos queda como opcional
+   (RF-4 `[C]`); la prioridad es que la documentación exista y esté al día.
 
 ## 2. Alcance
 
@@ -130,13 +139,20 @@ doc/
   herramientas (§5).
 - **RF-3.5. Formatos**: `--formato markdown,man,json` (por defecto los tres).
 - **RF-3.6. Determinismo**: misma entrada, misma salida byte a byte (orden alfabético de
-  módulos, cabeceras y funciones; sin fechas salvo con `--fecha`). Así `doc/` se puede
-  versionar y los cambios se ven en `git diff`.
+  módulos, cabeceras y funciones; sin fechas salvo con `--fecha`). Así regenerar sin
+  cambios en el código no modifica nada y los consumidores pueden comparar contenidos.
 - **RF-3.7. Limpieza**: los archivos de `doc/` que corbel generó en una corrida anterior
   y ya no corresponden (una función borrada) se eliminan. corbel sólo borra lo que
   registró en `doc/.corbel-manifest` y nunca toca otros archivos de `doc/`.
 
-### RF-4 — Cobertura y verificación `[M]`
+- **RF-3.8. Fuentes**: `api.json` lista los archivos de código que se leyeron
+  (`fuentes`: ruta relativa y SHA-256 de cada `.h` y `.c` de los módulos). Con eso un
+  consumidor sabe exactamente si la documentación quedó vieja: un archivo cambió (otro
+  hash), se agregó (no está en la lista) o se borró (está y no existe). Ver RF-9.
+
+### RF-4 — Cobertura y verificación `[C]`
+
+Opcional: no es fundamental para la cátedra. Se implementa después de lo demás.
 
 - **RF-4.1.** La cobertura de un módulo es el porcentaje de funciones y tipos públicos
   con docblock completo (mismo criterio que `corbel coverage`). La del proyecto es la
@@ -163,10 +179,10 @@ Ver §7 para el código de los Makefiles.
 
 - **RF-6.1.** Objetivos en el **Makefile raíz** de `plantilla-TP`:
   - `doc`: documentación de todo el proyecto en `doc/`;
-  - `doc-check`: cobertura y avisos; sale 1 bajo `DOC_MIN`;
-  - `doc-clean`: borra lo generado (según el manifiesto).
+  - `doc-clean`: borra lo generado (según el manifiesto);
+  - `doc-check` `[C]`: cobertura y avisos, cuando exista RF-4.
 - **RF-6.2.** Objetivos en el **Makefile de cada biblioteca y ejercicio** (los que genera
-  `tp.sh`): `doc` y `doc-check` del módulo, que escriben en el `doc/` de la raíz.
+  `tp.sh`): `doc` del módulo, que escribe en el `doc/` de la raíz (y `doc-check` `[C]`).
 - **RF-6.3.** Cada objetivo lleva un comentario arriba que dice qué hace (así lo muestran
   `jonesy` y `make help`).
 - **RF-6.4.** Si `corbel` no está instalado, `make doc` avisa y sale con 0 (como `fallos`
@@ -179,6 +195,9 @@ Ver §7 para el código de los Makefiles.
 - **RF-6.8.** `plantilla-libreria` agrega `doc` y `doc-check` a su Makefile y declara las
   páginas `man 3` en `library.json` (`exports.docs`) para que un TP que la clona pueda
   incorporarlas a su `doc/`.
+
+- **RF-6.9.** `doc/` va en el `.gitignore` de `plantilla-TP` y de `plantilla-libreria`;
+  `tp.sh sync` agrega la línea si falta.
 
 ### RF-7 — Configuración `[S]`
 
@@ -217,12 +236,38 @@ En español rioplatense y orientados a la acción. Ejemplos:
 - `@param cantidad no está en la firma de arreglo_sumar (¿se renombró?).`
 - `Cobertura del proyecto 72,4 % (mínimo 80 %): faltan 9 funciones. «make doc-check» lista cuáles.`
 
+### RF-9 — Integración con el IDE `[M]`
+
+Lo implementa `jonesy`; corbel sólo tiene que producir `api.json` con `fuentes` (RF-3.8).
+
+- **RF-9.1. Búsqueda**: al abrir el proyecto el IDE busca `<raíz>/doc/api.json` (o el
+  directorio de `[documentacion] dir` en `.jonesy.toml`) y, si existe, carga la
+  documentación de las funciones y tipos del proyecto.
+- **RF-9.2. Uso**: el quick-doc muestra firma, `@brief`, descripción, parámetros,
+  retorno, pre y poscondiciones de las funciones del proyecto (por ejemplo, de una
+  biblioteca usada desde un ejercicio), con la misma presentación que la libc.
+- **RF-9.3. Estado**: el IDE clasifica la documentación en
+  - **ausente**: no hay `api.json` (y el proyecto tiene un objetivo `doc` o corbel
+    está instalado);
+  - **desactualizada**: algún archivo de `fuentes` cambió, se borró, o hay un `.h`/`.c`
+    nuevo en un módulo; se reevalúa al guardar y al cambiar `api.json`;
+  - **al día**.
+- **RF-9.4. Aviso**: con documentación ausente o desactualizada, el IDE lo indica en la
+  barra de estado con un botón que corre `make doc`, y en el quick-doc de una función
+  del proyecto aclara que puede estar desactualizada. Nunca la regenera solo.
+- **RF-9.5. Recarga**: cuando `api.json` cambia (terminó `make doc`) se recarga sin
+  reiniciar el IDE.
+
 ## 5. Modelo de datos (`api.json`)
 
 ```json
 {
   "schema_version": "1.0.0",
   "proyecto": { "nombre": "tp3", "raiz": "." },
+  "fuentes": [
+    { "archivo": "libs/arreglos/arreglos.h", "sha256": "9f2c…" },
+    { "archivo": "libs/arreglos/arreglos.c", "sha256": "41aa…" }
+  ],
   "cobertura": { "total": 34, "documentados": 30, "porcentaje": 88.2 },
   "modulos": [
     {
@@ -266,6 +311,7 @@ En español rioplatense y orientados a la acción. Ejemplos:
 }
 ```
 
+- `cobertura` (del proyecto y de cada módulo) es opcional mientras no exista RF-4.
 - Extiende los modelos actuales (`ModuleDoc`, `DocumentedFunction`) en lugar de
   reemplazarlos: `corbel doc archivo.h --format json` sigue emitiendo el formato de hoy.
 - `faltan` lista los tags ausentes (`brief`, `param:capacidad`, `return`), como
@@ -319,7 +365,7 @@ doc:
 		test -z "$(DOC_ESTRICTO)"; \
 	fi
 
-# Verifica que la API esté documentada (sale 1 bajo DOC_MIN %)
+# [Opcional, RF-4] Verifica que la API esté documentada (sale 1 bajo DOC_MIN %)
 doc-check:
 	@if command -v $(CORBEL) >/dev/null 2>&1; then \
 		$(CORBEL) proyecto . --check --min $(DOC_MIN) $(DOC_FLAGS); \
@@ -356,7 +402,7 @@ doc:
 		test -z "$(DOC_ESTRICTO)"; \
 	fi
 
-# Verifica que la API de este módulo esté documentada (sale 1 bajo DOC_MIN %)
+# [Opcional, RF-4] Verifica que la API de este módulo esté documentada
 doc-check:
 	@if command -v $(CORBEL) >/dev/null 2>&1; then \
 		$(CORBEL) proyecto $(ROOT_DIR) --aca --check --min $(DOC_MIN); \
@@ -391,18 +437,19 @@ proyecto por `RAIZ`.
   ]
   ```
 
-- La CI de la plantilla corre `make doc-check DOC_MIN=100 DOC_ESTRICTO=1`.
+- La CI de la plantilla corre `make doc DOC_ESTRICTO=1` para comprobar que la
+  documentación se genera; `doc/` no se publica ni se versiona.
 
 ### 7.5. CI de `plantilla-TP`
 
-Un paso `make doc-check DOC_ESTRICTO=1` con el `DOC_MIN` que fije cada cátedra
-(por defecto 0: informa sin fallar).
+Un paso `make doc DOC_ESTRICTO=1` que sólo comprueba que la documentación se genera
+sin errores. Sin mínimos de cobertura.
 
 ## 8. Integración con el ecosistema
 
 | Herramienta | Uso |
 |---|---|
-| **jonesy** | Lee `doc/api.json` para que el quick-doc muestre la documentación de las funciones del propio proyecto (hoy sólo extrae prototipos del archivo activo). Los objetivos `doc` y `doc-check` aparecen solos en la vista Proyecto con su descripción. Si `api.json` no existe o es viejo, `jonesy` no lo regenera: ofrece `make doc`. |
+| **jonesy** | RF-9: busca `doc/api.json`, lo usa en el quick-doc, detecta si falta o quedó vieja (con `fuentes`) y lo indica con un botón que corre `make doc`. Los objetivos `doc` y `doc-clean` aparecen solos en la vista Proyecto con su descripción. |
 | **ripley** | El plugin `documentation` usa `corbel proyecto --check --json` cuando analiza un directorio de proyecto, y `corbel check` como hoy para un archivo suelto. |
 | **dredd** | `corbel report --proyecto` emite la sección de documentación con la tabla de cobertura por módulo. |
 | **gaff** | Sin cambios: sus placeholders cuentan como ausentes (RF-2.6). |
@@ -431,17 +478,21 @@ Un paso `make doc-check DOC_ESTRICTO=1` con el `DOC_MIN` que fije cada cátedra
 2. **Ejercicio**: `make -C ejercicios/ejercicio1 doc` actualiza
    `doc/ejercicios/ejercicio1.md` e `index.md` sin tocar los documentos de los otros
    módulos.
-3. **Sin documentar**: con una función sin docblock, `make doc-check DOC_MIN=100` sale con
-   1 y el mensaje dice qué función, dónde y cómo generar el esqueleto.
+3. **Sin documentar**: una función sin docblock figura en su documento de módulo como
+   «sin documentar», con su ubicación y cómo generar el esqueleto. (Con RF-4: `make
+   doc-check DOC_MIN=100` sale 1.)
 4. **Documentación en el .c**: una función documentada sólo en su `.c` aparece en la
    documentación y produce el aviso `documentacion-en-c`.
-5. **Determinismo**: dos `make doc` seguidos dejan `git status` limpio.
+5. **Determinismo**: dos `make doc` seguidos producen archivos idénticos byte a byte, y
+   `doc/` no aparece en `git status` (está en `.gitignore`).
 6. **Limpieza**: al borrar una función y correr `make doc`, su página `man 3`
    desaparece; un `doc/notas.md` escrito a mano no se toca.
 7. **Sin corbel**: con `corbel` fuera del `PATH`, `make doc` imprime el aviso y sale 0;
    con `DOC_ESTRICTO=1`, sale 1.
 8. **jonesy**: con `doc/api.json` presente, el quick-doc muestra el `@brief` y los
-   parámetros de una función de `libs/arreglos` al escribirla en un ejercicio.
+   parámetros de una función de `libs/arreglos` al escribirla en un ejercicio. Al
+   modificar y guardar `arreglos.h`, la barra de estado indica que la documentación está
+   desactualizada con un botón para `make doc`; al terminar, el aviso desaparece.
 9. **tp.sh**: después de `./tp.sh add-ex ejercicio4 arreglos` y `./tp.sh sync`, el
    Makefile del ejercicio nuevo tiene `doc` y `doc-check`.
 
@@ -451,11 +502,11 @@ Un paso `make doc-check DOC_ESTRICTO=1` con el `DOC_MIN` que fije cada cátedra
 |---|---|---|
 | 1 | Descubrimiento del proyecto (RF-1) y modelo extendido con tipos, ubicaciones y `api.json` (RF-2.1–2.3, §5) | corbel |
 | 2 | `corbel proyecto` con Markdown, man e índice; manifiesto y limpieza (RF-3) | corbel |
-| 3 | Cobertura por módulo, `--check`, `--min`, `--json`, `corbel.toml` (RF-4, RF-7) | corbel |
-| 4 | `--modulo` y `--aca` (RF-5); internas y referencias cruzadas (RF-2.4, RF-2.5) | corbel |
-| 5 | Makefiles y `tp.sh` (RF-6.1–6.7), CI de la plantilla | plantilla-TP |
-| 6 | `plantilla-libreria`: objetivos y `exports.docs` (RF-6.8) | plantilla-libreria |
-| 7 | Consumidores: quick-doc de `jonesy`, plugin de `ripley`, sección de `dredd` | jonesy, ripley, dredd |
+| 3 | `--modulo` y `--aca` (RF-5); internas y referencias cruzadas (RF-2.4, RF-2.5); `corbel.toml` (RF-7) | corbel |
+| 4 | Makefiles, `.gitignore` y `tp.sh` (RF-6.1–6.7, RF-6.9), CI de la plantilla | plantilla-TP |
+| 5 | `plantilla-libreria`: objetivos, `.gitignore` y `exports.docs` (RF-6.8) | plantilla-libreria |
+| 6 | IDE: búsqueda, quick-doc, estado y aviso (RF-9) | jonesy |
+| 7 | Opcional: cobertura, `--check`, `--min` y `doc-check` (RF-4); plugin de `ripley` y sección de `dredd` | corbel, ripley, dredd |
 
 Cada fase con sus pruebas: proyectos de ejemplo en `tests/datos/` (TP plano, biblioteca
 estructurada, módulo suelto), prueba de determinismo, prueba de limpieza y una prueba de
@@ -463,11 +514,9 @@ los Makefiles que corre `make doc` con un `corbel` falso en el `PATH`.
 
 ## 12. Preguntas abiertas
 
-1. ¿`doc/` se versiona en el repositorio del alumno o se ignora (`.gitignore`) y se genera
-   en la CI? La especificación permite ambos; la plantilla tiene que elegir uno.
-2. ¿El mínimo de cobertura por defecto de `plantilla-TP` es 0 (sólo informar) o la
-   cátedra fija uno por TP?
-3. ¿`man 3` de funciones del alumno con nombres que chocan con la libc (`strlen` propia)
+(Las preguntas sobre versionar `doc/` y el mínimo de cobertura quedaron resueltas en §1.1.)
+
+1. ¿`man 3` de funciones del alumno con nombres que chocan con la libc (`strlen` propia)
    se generan igual? Propuesta: sí, con un aviso, porque `man -l` las abre por ruta.
-4. ¿Hace falta un objetivo `make man` que copie las páginas a `~/.local/share/man/man3`
+2. ¿Hace falta un objetivo `make man` que copie las páginas a `~/.local/share/man/man3`
    para usar `man arreglo_crear` sin `-l`?
