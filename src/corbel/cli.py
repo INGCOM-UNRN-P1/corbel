@@ -12,6 +12,7 @@ from rich.panel import Panel
 from corbel import __version__
 from corbel.core.acsl_exporter import export_header_contracts_dict, render_acsl
 from corbel.core.doc_parser import parse_header_documentation
+from corbel.core.manpage_generator import generate_manpage
 from corbel.core.renderers import render_markdown, render_man_page
 from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation, cobertura
 
@@ -333,6 +334,37 @@ def cmd_acsl(
         console.print(f"[bold green]✓ Contratos ACSL exportados en:[/bold green] {output_file}")
     else:
         print(acsl_content, end="")
+
+
+@app.command("manpage")
+def cmd_manpage(
+    target: str = typer.Argument(..., help="Archivo .h, directorio o librería de la cátedra (ej. treadstone.h)."),
+    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta del archivo troff (.3) de salida."),
+    install_dir: Optional[Path] = typer.Option(None, "--install-dir", help="Directorio base de manuales donde instalar man3/<modulo>.3."),
+    no_install: bool = typer.Option(False, "--no-install", help="No instalar automáticamente en el directorio man3 del usuario."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir el resultado en formato JSON estructurado."),
+) -> None:
+    """Genera e instala páginas de manual UNIX (man 3) en formato troff estándar para librerías y TDAs de la cátedra."""
+    try:
+        resultado = generate_manpage(
+            target=target,
+            output_file=output_file,
+            install_dir=install_dir,
+            auto_install=not no_install,
+        )
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if json_output:
+        payload = {"schema_version": "1.0.0", **resultado}
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    if output_file:
+        console.print(f"[bold green]✓ Página de manual man 3 generada en:[/bold green] {output_file}")
+    else:
+        print(str(resultado["troff"]), end="")
+
 
 
 @app.command()

@@ -77,13 +77,15 @@ no es documentación. Con `--completitud` también se marcan los docblocks desac
 | `corbel coverage` | Porcentaje de la API pública documentada por completo (docblock, sin relleno y con todos sus tags). |
 | `corbel report` | Genera directamente la sección de reporte Markdown de CORBEL para Dredd. |
 | `corbel doctor` | Verifica el estado del entorno de documentación CORBEL (Python, man). |
+| `corbel acsl` | Exporta cláusulas Doxygen @pre y @post hacia contratos formales ACSL legibles por Frama-C WP y Callahan. |
+| `corbel manpage` | Genera e instala páginas de manual UNIX (man 3) en formato troff estándar para librerías y TDAs de la cátedra. |
 | `corbel version` | Muestra la versión de CORBEL. |
 
 Ayuda de cada comando: `corbel <comando> -h`.
 
 ### Salida JSON
 
-Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `corbel lint`, `corbel check`, `corbel coverage`, `corbel doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
+Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `corbel lint`, `corbel check`, `corbel coverage`, `corbel doctor`, `corbel acsl`, `corbel manpage`. El de `doctor --json` lleva `schema_version` y `ok`.
 
 ### Códigos de salida
 
