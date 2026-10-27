@@ -7,6 +7,15 @@ from pydantic import BaseModel, Field
 class FunctionParam(BaseModel):
     name: str
     description: str
+    c_type: str = ""
+
+
+class DocumentedMacro(BaseModel):
+    name: str
+    signature: str
+    brief: str
+    description: str = ""
+    params: List[FunctionParam] = Field(default_factory=list)
 
 
 class DocumentedFunction(BaseModel):
@@ -19,6 +28,7 @@ class DocumentedFunction(BaseModel):
     returns: str = ""
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
+    assigns: List[str] = Field(default_factory=list)
 
 
 class ModuleDoc(BaseModel):
@@ -26,3 +36,4 @@ class ModuleDoc(BaseModel):
     brief: str = ""
     description: str = ""
     functions: List[DocumentedFunction] = Field(default_factory=list)
+    macros: List[DocumentedMacro] = Field(default_factory=list)

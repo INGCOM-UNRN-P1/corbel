@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 
 from corbel import __version__
+from corbel.core.acsl_exporter import export_header_contracts_dict, render_acsl
 from corbel.core.doc_parser import parse_header_documentation
 from corbel.core.renderers import render_markdown, render_man_page
 from corbel.core.placeholder import inject_placeholders, analyze_missing_documentation, cobertura
@@ -29,7 +30,7 @@ console = Console()
 @app.command()
 def doc(
     header_path: Path = typer.Argument(..., help="Archivo .h a documentar", exists=True),
-    format_type: str = typer.Option("markdown", "--format", "-f", help="Formato de salida: markdown, man, json"),
+    format_type: str = typer.Option("markdown", "--format", "-f", help="Formato de salida: markdown, man, acsl, json"),
     output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo de destino (por defecto imprime en consola o genera archivo según formato)"),
     placeholders: bool = typer.Option(False, "--placeholders", "--scaffold", "-p", help="Inyectar placeholders Doxygen en el código fuente en lugar de exportar documentación"),
     in_place: bool = typer.Option(False, "--in-place", "-i", help="Modificar el archivo .h directamente al usar --placeholders"),
@@ -57,6 +58,16 @@ def doc(
             console.print(f"[bold green]✓ Man page (man 3) generada exitosamente en:[/bold green] {output_file}")
         else:
             print(man_content)
+        return
+
+    elif format_type.lower() == "acsl":
+        acsl_content = render_acsl(module_doc, source_header=header_path)
+        if output_file:
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            output_file.write_text(acsl_content, encoding="utf-8")
+            console.print(f"[bold green]✓ Contratos formales ACSL generados en:[/bold green] {output_file}")
+        else:
+            print(acsl_content, end="")
         return
 
     else:
@@ -295,6 +306,33 @@ def doctor_cmd(
     console.print(tabla)
     if not todo_ok:
         raise typer.Exit(code=1)
+
+
+@app.command("acsl")
+def cmd_acsl(
+    header_path: Path = typer.Argument(..., help="Archivo .h documentado desde el cual exportar contratos ACSL.", exists=True),
+    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo .h de salida con los bloques /*@ ... */ inyectados."),
+    in_place: bool = typer.Option(False, "--in-place", "-i", help="Inyectar los bloques ACSL directamente en el archivo .h."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir los contratos exportados en formato JSON estructurado."),
+) -> None:
+    """Exporta cláusulas Doxygen @pre y @post hacia contratos formales ACSL legibles por Frama-C WP y Callahan."""
+    if json_output:
+        payload = export_header_contracts_dict(header_path)
+        payload["schema_version"] = "1.0.0"
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    module_doc = parse_header_documentation(header_path)
+    acsl_content = render_acsl(module_doc, source_header=header_path)
+    if in_place:
+        header_path.write_text(acsl_content, encoding="utf-8")
+        console.print(f"[bold green]✓ Contratos ACSL inyectados in-place en:[/bold green] {header_path}")
+    elif output_file:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(acsl_content, encoding="utf-8")
+        console.print(f"[bold green]✓ Contratos ACSL exportados en:[/bold green] {output_file}")
+    else:
+        print(acsl_content, end="")
 
 
 @app.command()

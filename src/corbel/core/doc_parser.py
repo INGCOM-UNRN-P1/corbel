@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
+import re
+from typing import Dict, List, Optional
 
 import tree_sitter_c as tsc
 from tree_sitter import Language, Parser, Node
 
-from corbel.core.models import ModuleDoc, DocumentedFunction, FunctionParam
+from corbel.core.models import (
+    DocumentedFunction,
+    DocumentedMacro,
+    FunctionParam,
+    ModuleDoc,
+)
 
 _C_LANGUAGE: Optional[Language] = None
 _PARSER: Optional[Parser] = None
@@ -31,11 +37,18 @@ def parse_docblock(raw_comment: str) -> dict:
     returns = ""
     pre = []
     post = []
+    assigns = []
+    macro_def = ""
+    is_file_doc = False
 
     for line in lines:
         if not line:
             continue
-        if line.startswith("@brief"):
+        if line.startswith("@file"):
+            is_file_doc = True
+        elif line.startswith("@def"):
+            macro_def = line.replace("@def", "").strip()
+        elif line.startswith("@brief"):
             brief = line.replace("@brief", "").strip()
         elif line.startswith("@param"):
             parts = line.replace("@param", "").strip().split(maxsplit=1)
@@ -48,7 +61,9 @@ def parse_docblock(raw_comment: str) -> dict:
             pre.append(line.replace("@pre", "").strip())
         elif line.startswith("@post"):
             post.append(line.replace("@post", "").strip())
-        else:
+        elif line.startswith("@assigns"):
+            assigns.append(line.replace("@assigns", "").strip())
+        elif not line.startswith("@"):
             if not brief:
                 brief = line
             else:
@@ -61,6 +76,9 @@ def parse_docblock(raw_comment: str) -> dict:
         "returns": returns,
         "preconditions": pre,
         "postconditions": post,
+        "assigns": assigns,
+        "macro_def": macro_def,
+        "is_file_doc": is_file_doc,
     }
 
 
@@ -101,14 +119,88 @@ def _get_preceding_docblock(source_bytes: bytes, start_byte: int) -> Optional[st
     return None
 
 
+def _extract_param_types_from_signature(sig: str) -> Dict[str, str]:
+    """Extrae un mapa {nombre_param: tipo_c} desde una firma C."""
+    if "(" not in sig or ")" not in sig:
+        return {}
+    inner = sig.split("(", 1)[1].rsplit(")", 1)[0].strip()
+    if not inner or inner == "void":
+        return {}
+    result: Dict[str, str] = {}
+    for raw_part in inner.split(","):
+        part = raw_part.strip()
+        if not part or part == "...":
+            continue
+        m = re.match(r"^(.*?)\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]*\])?$", part)
+        if m:
+            c_type = " ".join(m.group(1).split())
+            name = m.group(2)
+            if "[" in part:
+                c_type = f"{c_type} *"
+            result[name] = c_type
+    return result
+
+
 def parse_header_documentation(header_path: Path) -> ModuleDoc:
-    """Parsea un archivo .h completo extrayendo las funciones documentadas vía Tree-Sitter AST."""
+    """Parsea un archivo .h completo extrayendo las funciones y macros documentadas vía Tree-Sitter AST."""
     content = header_path.read_text(encoding="utf-8", errors="replace")
     source_bytes = content.encode("utf-8")
     parser = get_c_parser()
     tree = parser.parse(source_bytes)
 
     functions: List[DocumentedFunction] = []
+    macros: List[DocumentedMacro] = []
+    seen_macros: set[str] = set()
+    module_brief = f"Documentación de interfaz para {header_path.name}"
+    module_desc = ""
+
+    for m_comment in re.finditer(r"/\*\*(.*?)\*/", content, re.DOTALL):
+        info = parse_docblock(m_comment.group(1))
+        if info["is_file_doc"] and info["brief"]:
+            module_brief = info["brief"]
+            module_desc = info["description"]
+        if info["macro_def"]:
+            m_name = info["macro_def"].split("(", 1)[0].strip()
+            if m_name and m_name not in seen_macros:
+                seen_macros.add(m_name)
+                macros.append(
+                    DocumentedMacro(
+                        name=m_name,
+                        signature=f"#define {info['macro_def']}",
+                        brief=info["brief"] or f"Macro {m_name}",
+                        description=info["description"],
+                        params=info["params"],
+                    )
+                )
+
+    for m_def in re.finditer(
+        r"^[ \t]*#[ \t]*define[ \t]+([A-Z][A-Z0-9_]*)\(([^)]*)\)",
+        content,
+        re.MULTILINE,
+    ):
+        m_name = m_def.group(1)
+        m_args = m_def.group(2).strip()
+        if m_name.startswith("_") or m_name.endswith("_H") or m_name in seen_macros:
+            continue
+        doc_raw = _get_preceding_docblock(source_bytes, m_def.start())
+        info = parse_docblock(doc_raw) if doc_raw else {
+            "brief": f"Macro de interfaz {m_name}({m_args}).",
+            "description": "",
+            "params": [
+                FunctionParam(name=a.strip(), description=f"Argumento {a.strip()}.")
+                for a in m_args.split(",") if a.strip() and a.strip() != "..."
+            ],
+        }
+        seen_macros.add(m_name)
+        macros.append(
+            DocumentedMacro(
+                name=m_name,
+                signature=f"#define {m_name}({m_args})",
+                brief=info["brief"] or f"Macro {m_name}({m_args}).",
+                description=info["description"],
+                params=info["params"],
+            )
+        )
 
     def _traverse(node: Node) -> None:
         if node.type in ("declaration", "function_definition"):
@@ -120,10 +212,18 @@ def parse_header_documentation(header_path: Path) -> ModuleDoc:
                 if fn_name:
                     doc_raw = _get_preceding_docblock(source_bytes, node.start_byte)
                     if doc_raw is not None:
+                        raw_node = (node.text or b"").decode("utf-8", errors="replace").split("{", 1)[0]
+                        sig = " ".join(raw_node.strip().rstrip(";").split()) + ";"
+                        prefix = sig.split(fn_name, 1)[0].strip()
+                        prefix = re.sub(r"\b(static|inline|extern)\b", "", prefix).strip()
                         type_node = node.child_by_field_name("type")
-                        ret_type = (type_node.text or b"").decode("utf-8", errors="replace") if type_node else "void"
-                        sig = (node.text or b"").decode("utf-8", errors="replace").strip().rstrip(";").strip() + ";"
+                        fallback_ret = (type_node.text or b"").decode("utf-8", errors="replace") if type_node else "void"
+                        ret_type = " ".join(prefix.split()) if prefix else fallback_ret
                         doc_data = parse_docblock(doc_raw)
+                        param_types = _extract_param_types_from_signature(sig)
+                        for p in doc_data["params"]:
+                            if p.name in param_types:
+                                p.c_type = param_types[p.name]
 
                         functions.append(DocumentedFunction(
                             name=fn_name,
@@ -134,7 +234,8 @@ def parse_header_documentation(header_path: Path) -> ModuleDoc:
                             params=doc_data["params"],
                             returns=doc_data["returns"],
                             preconditions=doc_data["preconditions"],
-                            postconditions=doc_data["postconditions"]
+                            postconditions=doc_data["postconditions"],
+                            assigns=doc_data["assigns"],
                         ))
                 return
 
@@ -145,6 +246,8 @@ def parse_header_documentation(header_path: Path) -> ModuleDoc:
 
     return ModuleDoc(
         header_name=header_path.name,
-        brief=f"Documentación de interfaz para {header_path.name}",
-        functions=functions
+        brief=module_brief,
+        description=module_desc,
+        functions=functions,
+        macros=macros,
     )
