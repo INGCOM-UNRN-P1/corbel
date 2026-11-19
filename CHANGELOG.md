@@ -12,6 +12,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Corregido
 
+- **doc**: el texto de un tag que sigue en la línea siguiente (`@param n cota …` + `* … de nodos.`) iba a la descripción general; ahora sigue el tag hasta una línea en blanco o el próximo, como en Doxygen. Afecta a `doc`, `manpage` y `readme`.
 - **check**: los esqueletos de versiones anteriores de `gaff fix`, sin corchetes (`@brief Descripción de la función`, `@param a Descripción del parámetro`), contaban como documentación escrita; ahora son ausentes, con los mismos textos que reconoce gaff.
 - **check**: cuando lo que falta es completar esqueletos ya generados, no sugerir `corbel scaffold` (no agrega nada) sino reemplazar el texto de relleno.
 

@@ -113,3 +113,4 @@ def test_cli_escribe_y_check(libreria):
     assert runner.invoke(app, ["readme", str(libreria), "--check"]).exit_code == 1
     assert runner.invoke(app, ["readme", str(libreria / "no-existe")]).exit_code == 2
     assert runner.invoke(app, ["readme", str(libreria), "--stdout"]).stdout.startswith("# lista")
+

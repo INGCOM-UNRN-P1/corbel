@@ -41,33 +41,65 @@ def parse_docblock(raw_comment: str) -> dict:
     macro_def = ""
     is_file_doc = False
 
+    # Como en Doxygen, el texto de un tag sigue en las líneas siguientes hasta una línea en
+    # blanco o el próximo tag: «@param n cota …\n * … de nodos.» es un solo parámetro.
+    ultimo = ""  # qué recibe una línea de continuación: brief, desc, param, return, pre, post, assigns
+
+    def _continuar(texto: str) -> None:
+        nonlocal brief, returns
+        if ultimo == "brief":
+            brief = f"{brief} {texto}".strip()
+        elif ultimo == "param" and params:
+            params[-1].description = f"{params[-1].description} {texto}".strip()
+        elif ultimo == "return":
+            returns = f"{returns} {texto}".strip()
+        elif ultimo in ("pre", "post", "assigns"):
+            lista = {"pre": pre, "post": post, "assigns": assigns}[ultimo]
+            lista[-1] = f"{lista[-1]} {texto}".strip()
+        else:
+            desc_lines.append(texto)
+
     for line in lines:
         if not line:
+            ultimo = "desc" if brief else ""
             continue
         if line.startswith("@file"):
             is_file_doc = True
+            ultimo = ""
         elif line.startswith("@def"):
             macro_def = line.replace("@def", "").strip()
+            ultimo = ""
         elif line.startswith("@brief"):
             brief = line.replace("@brief", "").strip()
+            ultimo = "brief"
         elif line.startswith("@param"):
             parts = line.replace("@param", "").strip().split(maxsplit=1)
             p_name = parts[0] if parts else "param"
             p_desc = parts[1] if len(parts) > 1 else ""
             params.append(FunctionParam(name=p_name, description=p_desc))
+            ultimo = "param"
         elif line.startswith(("@return", "@returns")):
             returns = line.split(maxsplit=1)[1] if len(line.split(maxsplit=1)) > 1 else ""
+            ultimo = "return"
         elif line.startswith("@pre"):
             pre.append(line.replace("@pre", "").strip())
+            ultimo = "pre"
         elif line.startswith("@post"):
             post.append(line.replace("@post", "").strip())
+            ultimo = "post"
         elif line.startswith("@assigns"):
             assigns.append(line.replace("@assigns", "").strip())
+            ultimo = "assigns"
         elif not line.startswith("@"):
             if not brief:
                 brief = line
+                ultimo = "brief"
+            elif ultimo:
+                _continuar(line)
             else:
                 desc_lines.append(line)
+        else:
+            ultimo = ""  # otro tag (@note, @see…): su texto no se mezcla con el anterior
 
     return {
         "brief": brief,
