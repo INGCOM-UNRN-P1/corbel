@@ -32,12 +32,12 @@ def parse_docblock(raw_comment: str) -> dict:
     """Extrae tags @brief, @param, @return, @pre, @post de un comentario de documentación."""
     lines = [line.strip().lstrip("*").strip() for line in raw_comment.strip().splitlines()]
     brief = ""
-    desc_lines = []
-    params = []
+    desc_lines: List[str] = []
+    params: List[FunctionParam] = []
     returns = ""
-    pre = []
-    post = []
-    assigns = []
+    pre: List[str] = []
+    post: List[str] = []
+    assigns: List[str] = []
     macro_def = ""
     is_file_doc = False
 
