@@ -60,6 +60,21 @@ Un docblock que todavía tiene el texto de relleno de `corbel scaffold` o de `ga
 no es documentación. Con `--completitud` también se marcan los docblocks desactualizados: un
 `@param` que ya no está en la firma (se renombró o se sacó) o un `@return` en una función `void`.
 
+### README de una librería
+
+`corbel readme` escribe el README de una librería hecha con `plantilla-libreria`: la versión y el
+repositorio (de `library.json`), los objetivos del Makefile, cómo agregarla a un TP
+(`./tp.sh add-lib`) y la API de sus cabeceras públicas, con parámetros, retorno, `@pre` y `@post`.
+Lo generado va entre las marcas `<!-- corbel:readme:inicio … -->` y `<!-- corbel:readme:fin -->`;
+lo que está fuera de ellas no se toca. Una función sin docblock, o con el esqueleto sin completar,
+aparece como pendiente. `--check` no escribe y sale con 1 si el README no está al día (para la CI);
+la plantilla lo trae como `make readme`.
+
+```bash
+corbel readme .            # crea o actualiza README.md
+corbel readme . --check    # ¿está al día con el código?
+```
+
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 
 ## Referencia rápida
@@ -80,6 +95,7 @@ no es documentación. Con `--completitud` también se marcan los docblocks desac
 | `corbel doctor` | Verifica el estado del entorno de documentación CORBEL (Python, man). |
 | `corbel acsl` | Exporta cláusulas Doxygen @pre y @post hacia contratos formales ACSL legibles por Frama-C WP y Callahan. |
 | `corbel manpage` | Genera e instala páginas de manual UNIX (man 3) en formato troff estándar para librerías y TDAs de la cátedra. |
+| `corbel readme` | Genera o actualiza el README de una librería (plantilla-libreria) desde su código. |
 | `corbel version` | Muestra la versión de CORBEL. |
 
 Ayuda de cada comando: `corbel <comando> -h`.

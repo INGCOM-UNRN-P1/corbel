@@ -373,6 +373,47 @@ def cmd_manpage(
 
 
 
+@app.command("readme")
+def cmd_readme(
+    raiz: Path = typer.Argument(Path("."), help="Carpeta de la librería (la de library.json e include/)."),
+    check: bool = typer.Option(False, "--check", help="No escribir: salir con 1 si el README no está al día (para la CI)."),
+    stdout: bool = typer.Option(False, "--stdout", help="Imprimir el README en lugar de escribirlo."),
+):
+    """Genera o actualiza el README de una librería (plantilla-libreria) desde su código.
+
+    Escribe uso, cómo agregarla a un TP y la API de las cabeceras públicas entre dos marcas
+    del README.md; lo que esté fuera de ellas no se toca. Las funciones sin documentar
+    aparecen como pendientes.
+    """
+    from corbel.core.readme import ErrorLibreria, readme_actualizado
+
+    if not raiz.is_dir():
+        console.print(f"[red]Error:[/red] No existe la carpeta '{raiz}'.")
+        raise typer.Exit(code=2)
+    destino = raiz / "README.md"
+    actual = destino.read_text(encoding="utf-8") if destino.is_file() else None
+    try:
+        nuevo = readme_actualizado(raiz, actual)
+    except ErrorLibreria as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
+    if stdout:
+        print(nuevo, end="")
+        return
+    if check:
+        if nuevo == actual:
+            console.print(f"[green]✓ {destino} está al día.[/green]")
+            return
+        console.print(f"[yellow]{destino} no está al día con el código:[/yellow] corré [cyan]corbel readme {raiz}[/cyan].")
+        raise typer.Exit(code=1)
+    if nuevo == actual:
+        console.print(f"[green]✓ {destino} ya estaba al día.[/green]")
+        return
+    destino.write_text(nuevo, encoding="utf-8")
+    console.print(f"[green]✓ {'Actualizado' if actual is not None else 'Creado'}:[/green] {destino}")
+
+
 @app.command()
 def version():
     """Muestra la versión de CORBEL."""

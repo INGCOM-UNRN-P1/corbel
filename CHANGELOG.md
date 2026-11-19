@@ -6,6 +6,10 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ## [Sin publicar]
 
+### Agregado
+
+- **readme**: `corbel readme` genera el README de una librería de `plantilla-libreria` (uso, `tp.sh add-lib` y la API de las cabeceras públicas) entre marcas, sin tocar lo escrito a mano; las funciones sin documentar quedan como pendientes y `--check` sirve para la CI.
+
 ### Corregido
 
 - **check**: los esqueletos de versiones anteriores de `gaff fix`, sin corchetes (`@brief Descripción de la función`, `@param a Descripción del parámetro`), contaban como documentación escrita; ahora son ausentes, con los mismos textos que reconoce gaff.
