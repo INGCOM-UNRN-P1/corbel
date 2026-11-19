@@ -55,7 +55,8 @@ corbel coverage include/ --min 80
 ```
 
 Un docblock que todavía tiene el texto de relleno de `corbel scaffold` o de `gaff fix`
-(`[Descripción breve…]`, `[completar: …]`) cuenta como **documentación ausente**: el esqueleto
+(`[Descripción breve…]`, `[completar: …]`, y el de versiones anteriores de gaff sin corchetes:
+`@brief Descripción de la función`) cuenta como **documentación ausente**: el esqueleto
 no es documentación. Con `--completitud` también se marcan los docblocks desactualizados: un
 `@param` que ya no está en la firma (se renombró o se sacó) o un `@return` en una función `void`.
 

@@ -192,8 +192,14 @@ def check(
         table.add_row(str(item["line"]), item["type"], item["signature"])
 
     console.print(table)
-    console.print(f"\n[bold yellow]Se encontraron {len(missing)} elemento(s) sin documentar.[/bold yellow] Podés generar los placeholders con:")
-    console.print(f"  [cyan]corbel scaffold {target} --in-place[/cyan]")
+    console.print(f"\n[bold yellow]Se encontraron {len(missing)} elemento(s) sin documentar.[/bold yellow]")
+    if any(m["type"] != "placeholder sin completar" for m in missing):
+        console.print("Podés generar los placeholders con:")
+        console.print(f"  [cyan]corbel scaffold {target} --in-place[/cyan]")
+    if any(m["type"] == "placeholder sin completar" for m in missing):
+        # Volver a correr scaffold no sirve: el esqueleto ya está y lo que falta es escribirlo.
+        console.print("Los esqueletos que generaron [cyan]corbel scaffold[/cyan] o [cyan]gaff fix[/cyan] cuentan "
+                      "como documentación ausente hasta que reemplaces su texto de relleno.")
     raise typer.Exit(code=1)
 
 

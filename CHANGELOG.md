@@ -4,6 +4,13 @@ Todos los cambios notables de este proyecto se documentan en este archivo.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versiones según [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Corregido
+
+- **check**: los esqueletos de versiones anteriores de `gaff fix`, sin corchetes (`@brief Descripción de la función`, `@param a Descripción del parámetro`), contaban como documentación escrita; ahora son ausentes, con los mismos textos que reconoce gaff.
+- **check**: cuando lo que falta es completar esqueletos ya generados, no sugerir `corbel scaffold` (no agrega nada) sino reemplazar el texto de relleno.
+
 ## [0.2.0] - 2026-09-28
 
 Primera versión con registro de cambios; lo anterior está en el historial de git.

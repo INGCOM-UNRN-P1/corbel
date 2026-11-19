@@ -162,18 +162,31 @@ def analizar_docblock_incompleto(
 
 
 # Marcas de los esqueletos de documentación que generan `corbel scaffold` y `gaff fix`: mientras
-# sigan en el docblock, la documentación no está escrita.
+# sigan en el docblock, la documentación no está escrita. Las de `gaff fix` de versiones
+# anteriores no llevan corchetes («@brief Descripción de la función»): son las mismas que
+# reconoce gaff (`gaff/core/contexto.py`, `_RE_DOC_ESQUELETO`) y tienen que coincidir.
 _MARCA_PLACEHOLDER = re.compile(
-    r"\[(?:completar:|Descripci[oó]n (?:breve|del|de)|Precondiciones|Postcondiciones)[^\]]*\]", re.IGNORECASE)
+    r"\[(?:completar\b|Descripci[oó]n (?:breve|del|de)|Precondiciones|Postcondiciones)[^\]]*\]"
+    r"|@brief\s+Descripci[oó]n de la funci[oó]n\s*\.?\s*$"
+    r"|@param\s+\w+\s+Descripci[oó]n del par[aá]metro\s*\.?\s*$"
+    r"|@returns?\s+Descripci[oó]n del valor de retorno\s*\.?\s*$",
+    re.IGNORECASE)
+_TAG = re.compile(r"@\w+(?:\s+\w+)?")
 
 
 def tags_con_placeholder(docblock: str) -> List[str]:
     """Las líneas del docblock que todavía tienen el texto de relleno del esqueleto."""
     pendientes = []
     for linea in docblock.splitlines():
-        if _MARCA_PLACEHOLDER.search(linea):
-            texto = linea.strip().lstrip("/*").strip()
-            pendientes.append(texto.split("[", 1)[0].strip() or texto)
+        texto = linea.strip().lstrip("/*").strip()
+        if _MARCA_PLACEHOLDER.search(texto):
+            if "[" in texto:
+                pendientes.append(texto.split("[", 1)[0].strip() or texto)
+            else:
+                # Sin corchetes, lo que queda es el tag con su parámetro: «@param a».
+                m = _TAG.match(texto)
+                tag = m.group(0) if m else texto
+                pendientes.append(tag if tag.startswith("@param") else tag.split()[0])
     return pendientes
 
 
