@@ -31,6 +31,7 @@ _OBJETIVOS = [
     ("test", "make test", "corre las pruebas"),
     ("run", "make run", "corre el programa de ejemplo"),
     ("doc", "make doc", "genera la documentación en `doc/`"),
+    ("readme", "make readme", "actualiza este README desde el código"),
     ("clean", "make clean", "borra lo compilado"),
 ]
 
@@ -140,8 +141,10 @@ def generar_bloque(raiz: Path) -> str:
     for cab in cabeceras:
         doc = cab.doc
         lineas += [f"### `{cab.ruta}`", ""]
+        # Sólo el @brief: la descripción del @file suele traer ejemplos de código y listas que,
+        # aplanadas en un párrafo, no se leen. Está completa en la cabecera.
         if not doc.brief.startswith("Documentación de interfaz para"):
-            lineas += [doc.brief + (f" {doc.description}" if doc.description else ""), ""]
+            lineas += [doc.brief, ""]
         documentadas = [f for f in doc.functions if f.name not in cab.con_relleno]
         # Sin docblock, el parser le inventa a la macro un «Macro de interfaz X(…)»: no la documenta.
         macros = [m for m in doc.macros if not m.brief.startswith("Macro de interfaz ")]

@@ -15,6 +15,8 @@ CABECERA = """#ifndef LISTA_H
 /**
  * @file lista.h
  * @brief Lista enlazada de enteros.
+ *
+ * Uso: lista_t *l = lista_crear(); lista_agregar(l, 1);
  */
 
 /**
@@ -52,7 +54,8 @@ def libreria(tmp_path):
         "name": "lista", "version": "2.0.0", "repository": "https://github.com/alumno/lista.git",
         "exports": {"headers": [{"source": "include/lista.h", "destination": "include/lista.h"}]},
     }), encoding="utf-8")
-    (tmp_path / "Makefile").write_text("CC = gcc\nall: x\ntest: y\nclean:\n\trm -rf build\n", encoding="utf-8")
+    (tmp_path / "Makefile").write_text("CC = gcc\nall: x\ntest: y\nreadme:\nclean:\n\trm -rf build\n",
+                                       encoding="utf-8")
     return tmp_path
 
 
@@ -60,9 +63,10 @@ def test_el_bloque_tiene_uso_tp_y_api(libreria):
     bloque = generar_bloque(libreria)
     assert bloque.startswith(INICIO) and bloque.rstrip().endswith(FIN)
     assert "**Versión:** 2.0.0" in bloque
-    assert "make test   # corre las pruebas" in bloque and "make run" not in bloque  # sólo los objetivos que hay
+    assert "make test    # corre las pruebas" in bloque and "make run" not in bloque  # sólo los objetivos que hay
     assert "./tp.sh add-lib lista https://github.com/alumno/lista.git" in bloque
-    assert "Lista enlazada de enteros." in bloque
+    assert "Lista enlazada de enteros.\n" in bloque and "Uso: lista_t" not in bloque  # del @file, sólo el brief
+    assert "make readme  # actualiza este README desde el código" in bloque
     assert "| [`lista_crear`](#lista_crear) | Crea una lista vacía. |" in bloque
     assert "| `valor` | El valor \\| a agregar. |" in bloque
     assert "**Devuelve:** La lista, o NULL si no hay memoria." in bloque
